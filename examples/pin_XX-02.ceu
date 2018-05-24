@@ -1,0 +1,29 @@
+#include "wclock.ceu"
+
+#if 0
+#define PIN_XX PIN_02
+//#define GPIO_PIN_02_MODE _LOW
+#include "gpio/pin_02.ceu"
+#elif 0
+#define PIN_XX PIN_03
+//#define GPIO_PIN_03_MODE _LOW
+#include "gpio/pin_03.ceu"
+#elif 1
+#define PIN_XX PIN_10
+#include "gpio/pin_10.ceu"
+#endif
+
+output bool PIN_13;
+
+loop do
+    watching PIN_XX do
+        var bool x = false;
+        every 500ms do
+            x = not x;
+            emit PIN_13(x);
+        end
+    end
+    await 500ms;     // debouncing
+    await PIN_XX;
+    await 500ms;     // debouncing
+end
