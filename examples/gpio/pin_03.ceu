@@ -1,0 +1,25 @@
+/*
+ * BUTTON => LED
+ * Button press/release connected to PIN_03 generates an interrupt.
+ * Interrupt generates "emit PIN_03" passing the button state.
+ * Main program changes LED connected to PIN13 according to the button state.
+ */
+
+input  on/off PIN_03;
+output on/off PIN_13;
+
+{
+    EICRA = (EICRA & ~((1<<ISC10) | (1<<ISC11))) | (CHANGE << ISC10);
+    EIMSK |= (1<<INT1);
+}
+
+spawn async/isr [_INT1_vect] do
+    emit PIN_03(_digitalRead(3) as on/off);
+end
+
+emit PIN_13(off);
+
+loop do
+    var on/off v = await PIN_03;
+    emit PIN_13(v);
+end
