@@ -1,7 +1,5 @@
 // compile with CC_DEFS="-DCEU_PM_MIN"
 
-/* TODO: only working with original Arduino (but see other TODO comment below) */
-
 #include "wclock.ceu"
 
 native/pure _BAUD_USART;
@@ -23,7 +21,7 @@ spawn async/isr [_USART_TX_vect,0] do
 end
 
 {
-    UCSR0A = 1 << U2X0; // TODO: maybe now works on other Arduino's??
+    UCSR0A = 1 << U2X0;
 
     UBRR0H = (BAUD_USART(9600)>>8);     // set baud rate
     UBRR0L = (BAUD_USART(9600));
