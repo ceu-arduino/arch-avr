@@ -1,8 +1,9 @@
-// compile with CC_DEFS="-DCEU_PM_MIN"
+// compile with CEU_DEFS=-DCEU_PM_MIN
 
 #include "wclock.ceu"
 
-native/pure _BAUD_USART;
+native/const _USART_TX_vect, _USART0_TX_vect;
+
 native/pre do
 #ifdef __AVR_ATmega644P__
     ##define BAUD_USART(baud_human) (((F_CPU / (baud_human * 16UL))) - 1)
@@ -30,25 +31,25 @@ end
            | (1<<RXCIE0) | (1<<TXCIE0); // enable interrupts
 }
 do finalize with
-    _UCSR0B = 0;                        // disable TX/RX & interrups
+    {UCSR0B = 0;}                       // disable TX/RX & interrups
 end
 
 loop do
     await 1s;
 
-    _ceu_assert(_UCSR0A & (1<<_UDRE0), "bug found");
-    _UDR0 = {'h'};
+    {ceu_assert(UCSR0A & (1<<UDRE0), "bug found");}
+    {UDR0 = 'h';}
     await USART_TX;
-    _UDR0 = {'e'};
+    {UDR0 = 'e';}
     await USART_TX;
-    _UDR0 = {'l'};
+    {UDR0 = 'l';}
     await USART_TX;
-    _UDR0 = {'l'};
+    {UDR0 = 'l';}
     await USART_TX;
-    _UDR0 = {'o'};
+    {UDR0 = 'o';}
     await USART_TX;
-    _UDR0 = {'\n'};
+    {UDR0 = '\n';}
     await USART_TX;
-    _UDR0 = {'\r'};
+    {UDR0 = '\r';}
     await USART_TX;
 end

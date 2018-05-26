@@ -1,4 +1,4 @@
-// compile with CC_DEFS="-DCEU_PM_MIN"
+// compile with CEU_DEFS=-DCEU_PM_MIN
 
 /*
  * Runs a timer on CTC mode, e.g., every 500ms generates an interrupt.
@@ -6,25 +6,27 @@
  * Main program blinks LED connected to PIN13 every 500ms.
  */
 
-output bool PIN_13;
+native/const _TIMER1_COMPA_vect;
+
+_pinMode(13, _OUTPUT);
 
 // initialize timer1 
-do
-    _TCCR1A = 0;
-    _TCCR1B = 0;
-    _TCNT1  = 0;
-    _OCR1A  = 31250;                    // compare match register 16MHz/256/2Hz
-    _TCCR1B = _TCCR1B | (1 << _WGM12);  // CTC mode
-    _TCCR1B = _TCCR1B | (1 << _CS12);   // 256 prescaler
-    _TIMSK1 = _TIMSK1 | (1 << _OCIE1A); // enable timer compare interrupt
-end
+{
+    TCCR1A = 0;
+    TCCR1B = 0;
+    TCNT1  = 0;
+    OCR1A  = 31250;                  // compare match register 16MHz/256/2Hz
+    TCCR1B = TCCR1B | (1 << WGM12);  // CTC mode
+    TCCR1B = TCCR1B | (1 << CS12);   // 256 prescaler
+    TIMSK1 = TIMSK1 | (1 << OCIE1A); // enable timer compare interrupt
+}
 
 spawn async/isr [_TIMER1_COMPA_vect, 0] do
     emit 500ms;
 end
 
-var bool x = false;
+var high/low x = low;
 every 500ms do
     x = not x;
-    emit PIN_13(x);
+    _digitalWrite(13, x);
 end

@@ -1,14 +1,16 @@
-output on/off PIN_13;
-input bool PIN_10;
+input high/low PIN_10;
+native/const _PCINT0_vect;
 
 // PIN_10 is PCINT4
 // PCINT4 must be enabled on PCIE0
 // Pin Change Interrupt Request is executed from the PCI0 Interrupt Vector
 
 {
+    pinMode(10, INPUT_PULLUP);
+    pinMode(13, OUTPUT);
+
     bitSet(PCMSK0, PCINT4);
     bitSet(PCICR, PCIE0);
-
 
     //bitSet(EICRA, ISC00);   // edge of INT0 generates an interrupt request
     //bitSet(PCIFR, PCIF0);
@@ -19,9 +21,8 @@ spawn async/isr [_PCINT0_vect, 0] do
     emit PIN_10(_digitalRead(10) as bool);
 end
 
-emit PIN_13(off);
-
+_digitalWrite(13, low);
 loop do
-    var on/off v = await PIN_10;
-    emit PIN_13(v);
+    var high/low v = await PIN_10;
+    _digitalWrite(13, v);
 end

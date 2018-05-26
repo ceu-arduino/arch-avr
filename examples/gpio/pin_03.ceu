@@ -5,21 +5,23 @@
  * Main program changes LED connected to PIN13 according to the button state.
  */
 
-input  on/off PIN_03;
-output on/off PIN_13;
+input high/low PIN_03;
+
+native/const _INT1_vect;
 
 {
+    pinMode(3, INPUT_PULLUP);
+    pinMode(13, OUTPUT);
     EICRA = (EICRA & ~((1<<ISC10) | (1<<ISC11))) | (CHANGE << ISC10);
     EIMSK |= (1<<INT1);
 }
 
 spawn async/isr [_INT1_vect] do
-    emit PIN_03(_digitalRead(3) as on/off);
+    emit PIN_03(_digitalRead(3) as high/low);
 end
 
-emit PIN_13(off);
-
+_digitalWrite(13, low);
 loop do
-    var on/off v = await PIN_03;
-    emit PIN_13(v);
+    var high/low v = await PIN_03;
+    _digitalWrite(13, v);
 end

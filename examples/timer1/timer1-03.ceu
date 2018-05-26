@@ -1,4 +1,4 @@
-// compile with CC_DEFS="-DCEU_PM_MIN"
+// compile with CEU_DEFS=-DCEU_PM_MIN
 
 /*
  * With 1024 prescaler: 16M/1024 incs/s : 15625 incs/s
@@ -13,7 +13,9 @@
 #define US_TO_OVERFLOW(us) (65536 - (us/64) - 64)
 #define INCS_TO_US(incs) (((s32)(incs))*64)
 
+native/const _TIMER1_OVF_vect;
 native _ceu_arduino_dt;
+
 native/pos do
     ##define __WCLOCK_CEU__
     static u16 CEU_ARDUINO_old;
@@ -48,52 +50,52 @@ spawn async/isr [_TIMER1_OVF_vect, 0] do
     emit (_ceu_arduino_dt())us;
 end
 
-output bool PIN_13;
+_pinMode(13, _OUTPUT);
 
 var int i;
 loop i in [0->5[ do
-    emit PIN_13(true);
+    _digitalWrite(13,high);
     await 250ms;
-    emit PIN_13(false);
+    _digitalWrite(13,low);
     await 250ms;
 end
 
 await 1s;
 loop i in [0->5[ do
-    emit PIN_13(true);
+    _digitalWrite(13,high);
     await 500ms;
-    emit PIN_13(false);
+    _digitalWrite(13,low);
     await 500ms;
 end
 
 await 1s;
 loop i in [0->5[ do
-    emit PIN_13(true);
+    _digitalWrite(13,high);
     await 1s;
-    emit PIN_13(false);
+    _digitalWrite(13,low);
     await 1s;
 end
 
 await 1s;
 loop i in [0->5[ do
-    emit PIN_13(true);
+    _digitalWrite(13,high);
     await 2s;
-    emit PIN_13(false);
+    _digitalWrite(13,low);
     await 2s;
 end
 
 await 1s;
-emit PIN_13(true);
+_digitalWrite(13,high);
 loop i in [0->10[ do
     await 1s;
 end
-emit PIN_13(false);
+_digitalWrite(13,low);
 
 // ERROR here, overflow!
 await 1s;
 loop i in [0->5[ do
-    emit PIN_13(true);
+    _digitalWrite(13,high);
     await 5s;
-    emit PIN_13(false);
+    _digitalWrite(13,low);
     await 5s;
 end

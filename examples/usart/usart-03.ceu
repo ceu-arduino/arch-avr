@@ -1,8 +1,10 @@
-// compile with CC_DEFS="-DCEU_PM_MIN"
+// compile with CEU_DEFS=-DCEU_PM_MIN
 
 #include "wclock.ceu"
 
-native/pure _BAUD_USART;
+native/const _USART_TX_vect, _USART0_TX_vect;
+native/const _USART_RX_vect, _USART0_RX_vect;
+
 native/pre do
 #ifdef __AVR_ATmega644P__
     ##define BAUD_USART(baud_human) (((F_CPU / (baud_human * 16UL))) - 1)
@@ -19,7 +21,7 @@ spawn async/isr [_USART0_RX_vect,0] do
 #else
 spawn async/isr [_USART_RX_vect,0] do
 #endif
-    var byte c = _UDR0;
+    var byte c = {UDR0};
     emit USART_RX(c);
 end
 
@@ -41,11 +43,11 @@ end
            | (1<<RXCIE0) | (1<<TXCIE0); // enable interrupts
 }
 do finalize with
-    _UCSR0B = 0;                        // disable TX/RX & interrups
+    {UCSR0B = 0;}                       // disable TX/RX & interrups
 end
 
 loop do
     var byte c = await USART_RX;
-    _ceu_assert(_UCSR0A & (1<<_UDRE0), "bug found");
-    _UDR0 = c;
+    {ceu_assert(UCSR0A & (1<<UDRE0), "bug found");}
+    {UDR0 = @c;}
 end
