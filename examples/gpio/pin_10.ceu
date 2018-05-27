@@ -18,7 +18,7 @@ native/const _PCINT0_vect;
 }
 
 spawn async/isr [_PCINT0_vect, 0] do
-    emit PIN_10(_digitalRead(10) as bool);
+    emit PIN_10(_digitalRead(10));
 end
 
 _digitalWrite(13, low);

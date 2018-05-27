@@ -17,7 +17,7 @@ native/const _INT0_vect;
 }
 
 spawn async/isr [_INT0_vect] do
-    emit PIN_02(_digitalRead(2) as high/low);
+    emit PIN_02(_digitalRead(2));
 end
 
 _digitalWrite(13, low);
