@@ -8,8 +8,6 @@
 
 native/const _TIMER1_COMPA_vect;
 
-_pinMode(13, _OUTPUT);
-
 // initialize timer1 
 {
     TCCR1A = 0;
@@ -25,6 +23,7 @@ spawn async/isr [_TIMER1_COMPA_vect, 0] do
     emit 500ms;
 end
 
+_pinMode(13, _OUTPUT);
 var high/low x = low;
 every 500ms do
     x = not x;
