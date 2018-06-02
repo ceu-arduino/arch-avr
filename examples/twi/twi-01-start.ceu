@@ -7,8 +7,9 @@ The Start condition further changes the TWDR to SLA Read and the TWCR is set to 
 Testing:
     - The NACK was acheived by just the master connected to the slave without the SDA and SLA connected with it which makes the slave return a NACK
     - The ACK from the slave was acheived by a fully connected master slave TWI system 
-
-The 2 can be differentiated by the number of fast blinks in led 13
+        The 2 can be differentiated by the number of fast blinks in led 13
+    - The ACK/NACK interrupt is not triggered in case of await forever in place of 300ms but the start is triggered
+    - When a wrong address is mentioned the NACK is assumed and the assert is called accordingly
 */
 #include "wclock.ceu"
 native
@@ -48,7 +49,7 @@ end
 {
   TWBR = ((F_CPU / 100000L) - 16) / 2;//set bit rate
 }
-await 3ms;// wait for init;
+await 3ms;// wait for init;        ||to do: find if this is necessary||
 
 
 {
