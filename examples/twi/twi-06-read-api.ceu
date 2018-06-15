@@ -39,16 +39,14 @@ errorcode :
   Other Errors             3
 */
 
-var byte twi_receive_buffer=0;// max buffer length = 1 in this 1 byte example
+var byte twi_receive_buffer = 0; // max buffer length = 1 in this 1 byte example
 input  (u8,u8) I2C_REQUEST_DONE;
-event none receive;
 
-output (u8 address,byte&& buffer,u8 n_byte) I2C_REQUEST_RECEIVE do
+output (u8 address,u8 n_byte) I2C_REQUEST_RECEIVE do
     outer.requestmode=1;// Read mode
+    outer.twi_receive_buffer = 0;
     {SLA=@address;}
     {TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE);} // start condition
-    await outer.receive;
-    *(buffer) = outer.twi_receive_buffer;
 end
 spawn async/isr [_TWI_vect] do
     var bool done=false;
@@ -64,7 +62,7 @@ spawn async/isr [_TWI_vect] do
                 break;
             
             case TW_MR_DATA_NACK:
-                @outer.twi_receive_buffer = TWDR;
+                @(outer.twi_receive_buffer) = TWDR;
                 TWCR = (1<<TWINT) | (1<<TWEN)| (1<<TWSTO) | (1<<TWIE);// send stop condition
                 @done=1;
                 break;
@@ -75,16 +73,18 @@ spawn async/isr [_TWI_vect] do
     }
 
     if done then
-        emit outer.receive;
+        emit I2C_REQUEST_DONE(1,outer.errorcode);
     end
-    emit I2C_REQUEST_DONE(1,outer.errorcode);
 end
 
-{TWBR = ((F_CPU / 100000L) - 16) / 2;} // Bit rate formula
+{
+    Serial.begin(9600);
+    TWBR = ((F_CPU / 100000L) - 16) / 2;// Bit rate formula
+    pinMode(12,OUTPUT);
+} 
 
 loop do
-    var byte getData = 0;
-    emit I2C_REQUEST_RECEIVE(4,&&getData,1);
-    _digitalWrite(12, getData as bool);
-    await 300ms; //send start every 300ms
+    emit I2C_REQUEST_RECEIVE(4,1);
+    await I2C_REQUEST_DONE;
+    {Serial.println(@twi_receive_buffer);}
 end
