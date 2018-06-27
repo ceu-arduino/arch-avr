@@ -1,24 +1,22 @@
 /*
 The following program illustrates the process of master read using TWI via a ceu API.
 The program starts by setting the value of the Bit Rate (TWBR).
-It triggers the interrupt by sending the start condition every 300ms.
+It triggers the interrupt by sending the start condition every time we request.
 The Start condition further changes the TWDR to SLA Read and the TWCR is set to resume the transfer.
-Further, the api sets the buffer/getData to the value of TWDR.
-We will emit PIN 12 to the value of the data received.
+Further, the api sets the twi_receive_buffer to the value of TWDR.
+We will print to Serial the value of the data received.
 
 
 Testing:
-    - The ACK from the slave was acheived by a fully connected master slave TWI system and the LED connected to pin 12 blinks every 300ms corresponding to the data received.
-    - When a wrong address is mentioned or the slave is disconnected the NACK is assumed and the assert is called accordingly.
-    - When 300ms is replaced by FOREVER the data is sent only once as expected
+    - The ACK from the slave was acheived by a fully connected master slave TWI system and the data received is printed to the serial.
+    - When a wrong address is mentioned or the slave is disconnected the NACK is assumed and goes to default condition and sends a stop.
+    - When I2C_REQUEST_DONE is replaced by FOREVER and the serial print is removed the data is sent only once as expected.
 
 
 Circuit :
     - SDA,SCL lines of both master and slave pulled up by a resistor to 5V.
-    - 5V and GND of both master and slave connected respectively to operate both at same voltage
-    - an LED connected to the PIN 12 that is set to the data received.
-    - The slave can be connected to a switch and send data received on the pin connected tot he switch. Any alternate methods to send data is also fine.
-
+    - 5V and GND of both master and slave connected respectively to operate both at same voltages.
+    - Slave sending some data to the master and this data can be viewed through serial monitor.
 */
 #include "wclock.ceu"
 #include "gpio.ceu"
