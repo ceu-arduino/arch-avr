@@ -39,8 +39,6 @@ native
 
 native/pre do
     ##include <compat/twi.h>
-    int SLA;
-    int count=1;
 
     enum {
         TWI_ERR_NONE = 0,
@@ -59,16 +57,15 @@ native/pre do
     ##define TWI_STOP() TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWSTO);
 end
 
-{pinMode(6,INPUT_PULLUP);}
-var int mode = {TWI_MODE_NONE};
+var u8   addr = _;
+var int  mode = {TWI_MODE_NONE};
+var byte buf  = _;   // max buffer length = 1 in this 1 byte example
 
-var byte twi_transmit_buffer=0;// max buffer length = 1 in this 1 byte example
-
-input  (u8,u8) I2C_REQUEST_DONE;
+input (u8,u8) I2C_REQUEST_DONE;
 
 output (u8 address) I2C_REQUEST_SEND do
     outer.mode = {TWI_MODE_WRITE}; // write mode
-    {SLA=@address;}
+    outer.addr = address;
     {TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE);}// start condition
 end
 
@@ -82,15 +79,14 @@ spawn async/isr [_TWI_vect] do
         // NOT DONE
 
         case TW_START:
-            ceu_arduino_assert(@(outer.mode) != TWI_MODE_NONE, 9);
-            //ceu_assert(@(outer.mode) != TWI_MODE_NONE, "bug found");
-            TWDR = (SLA << 1) | (@(outer.mode)); // SLA + Read/Write
+            ceu_assert(@(outer.mode) != TWI_MODE_NONE, "bug found");
+            TWDR = (@outer.addr << 1) | (@(outer.mode)); // SLA + Read/Write
             @(outer.mode) = TWI_MODE_NONE;
             TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE); // Continue Transfer
             @done = 0;
             break;
         case TW_MT_SLA_ACK:
-            TWDR = @(outer.twi_transmit_buffer);
+            TWDR = @(outer.buf);
             TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE);
             @done = 0;
             break;
@@ -136,17 +132,19 @@ spawn async/isr [_TWI_vect] do
   end
 end
 
-
-{TWBR = ((F_CPU / 100000L) - 16) / 2;}// Bit rate formula
-_Serial.begin(9600);
+{
+    Serial.begin(9600);
+    pinMode(6, INPUT_PULLUP);
+    TWBR = ((F_CPU / 100000L) - 16) / 2;    // bit rate formula
+}
 
 var int i;
 loop i do
-    twi_transmit_buffer = i;
-    emit I2C_REQUEST_SEND(4);
+    buf = i;
+    emit I2C_REQUEST_SEND(8);
     var u8 n;
     var u8 err;
     (n, err) = await I2C_REQUEST_DONE;
-    //_ceu_assert(n == 1, "bug found");
+    _ceu_assert(n == 1, "bug found");
     _ceu_arduino_assert(err == {TWI_ERR_NONE}, err);
 end
