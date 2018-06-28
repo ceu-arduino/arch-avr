@@ -16,7 +16,6 @@
  *    corresponding to the data received.
  *  - When a wrong address is mentioned or the slave is disconnected the NACK
  *    is assumed and the assert is called accordingly.
- *  - When 300ms is replaced by FOREVER the data is sent only once as expected.
  *
  * Circuit :
  *  - SDA,SCL lines of both master and slave pulled up by a resistor to 5V.
@@ -27,19 +26,22 @@
  */
 
 #include "wclock.ceu"
+
 native
     _TWI_vect,
 ;
+
 native/pre do
     ##include <compat/twi.h>
-    int SLA=4;
+    int SLA=8;
     int count=1;
 end
+
 spawn async/isr [_TWI_vect] do
 {
-  switch(TW_STATUS){
+  switch(TW_STATUS) {
     case TW_START:
-        TWDR = (SLA << 1);//SLA+WRITE
+        TWDR = (SLA << 1); // SLA+WRITE
         TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE);
         break;
     
@@ -48,21 +50,27 @@ spawn async/isr [_TWI_vect] do
         count++;
         TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE);
         break;
+
     case TW_MT_SLA_NACK:
-        //ceu_arduino_assert(0,3);// in case of slave not connected or receiving NACK from slave
+        // in case of slave not connected or "receiving" NACK from slave
+        ceu_arduino_assert(0,3);
         break;
         
     default:
-        TWCR = (1<<TWINT)|(1<<TWEN)| (1<<TWSTO) | (1<<TWIE);//default case sends stop condition
+        // default case sends stop condition
+        TWCR = (1<<TWINT)|(1<<TWEN)| (1<<TWSTO) | (1<<TWIE);
   }
 }
 end
+
 {
-    TWBR = ((F_CPU / 100000L) - 16) / 2;// Bit rate formula
+    TWBR = ((F_CPU / 100000L) - 16) / 2; // bit rate formula
 }
+
+// send start every 300ms
 loop do
     {
-    TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE);//Start Condition
+        TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE); // start Condition
     }
-    await 300ms;//send start every 300ms
+    await 300ms;
 end
