@@ -58,23 +58,22 @@ var u8   addr = _;
 var int  mode = {TWI_MODE_NONE};
 
 #define BUF_MAX 32
-var[BUF_MAX] byte buf;
-var int buf_idx = _;
-var int buf_len = _;
+var[BUF_MAX*] byte buf;
+var int buf_togo = _;
 
 input (u8,u8) I2C_REQUEST_DONE;
 
 output (u8 address) I2C_REQUEST_SEND do
     outer.mode = {TWI_MODE_WRITE}; // write mode
     outer.addr = address;
-    outer.buf_idx = 0;
-    outer.buf_len = $outer.buf as int;
+    outer.buf_togo = $outer.buf as int;
     {TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE);}// start condition
 end
 
 spawn async/isr [_TWI_vect] do
   var bool done = true;
   var int  err  = _;
+  var bool txed = false;
   {
     u8 status = TW_STATUS;
     switch (status)
@@ -94,10 +93,10 @@ spawn async/isr [_TWI_vect] do
 
         case TW_MT_SLA_ACK:
         case TW_MT_DATA_ACK:
-            if (@outer.buf_idx < @outer.buf_len) {
-                TWDR = @(outer.buf[outer.buf_idx]);
-                @outer.buf_idx = @outer.buf_idx + 1;
+            if (@($outer.buf) > 0) {
+                TWDR = @(outer.buf[0]);
                 TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE);
+                @txed = 1;
                 @done = 0;
             } else {
                 TWI_STOP();
@@ -134,9 +133,11 @@ spawn async/isr [_TWI_vect] do
             ceu_arduino_assert(0, 9); // must never reach this case
     }
   }
+  if txed then
+    $outer.buf = $outer.buf - 1;
+  end
   if done then
-    emit I2C_REQUEST_DONE(outer.buf_len, err);
-    outer.buf = [];
+    emit I2C_REQUEST_DONE((outer.buf_togo - $outer.buf) as u8, err);
   end
 end
 
@@ -148,7 +149,7 @@ end
 
 var int i;
 loop i do
-    buf = [0,1,2,8,9,9];
+    buf = [0,1,2,3,4,i];
     emit I2C_REQUEST_SEND(8);
     var u8 n;
     var u8 err;
