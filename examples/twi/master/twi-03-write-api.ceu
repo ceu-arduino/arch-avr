@@ -77,7 +77,10 @@ spawn async/isr [_TWI_vect] do
   var int  err  = _;
   {
     u8 status = TW_STATUS;
-    switch(status) {
+    switch (status)
+    {
+        // NOT DONE
+
         case TW_START:
             ceu_arduino_assert(@(outer.mode) != TWI_MODE_NONE, 9);
             //ceu_assert(@(outer.mode) != TWI_MODE_NONE, "bug found");
@@ -91,10 +94,15 @@ spawn async/isr [_TWI_vect] do
             TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE);
             @done = 0;
             break;
+
+        // DONE: no errors
+
         case TW_MT_DATA_ACK:
             TWI_STOP();
             @err = TWI_ERR_NONE;
             break;
+
+        // DONE: with errors
 
         case TW_MT_SLA_NACK:
         case TW_MT_DATA_NACK:   // occurs disconnecting A4=SDA, A5=SCL
@@ -135,7 +143,7 @@ _Serial.begin(9600);
 var int i;
 loop i do
     twi_transmit_buffer = i;
-    emit I2C_REQUEST_SEND(8);
+    emit I2C_REQUEST_SEND(4);
     var u8 n;
     var u8 err;
     (n, err) = await I2C_REQUEST_DONE;
