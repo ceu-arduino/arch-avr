@@ -30,73 +30,115 @@
  *  - an LED connected to the slave that is set to the data received to observe
  *    the output or a Serial monitor to display the data received.
 */
+
 #include "wclock.ceu"
+
 native
     _TWI_vect,
 ;
+
 native/pre do
     ##include <compat/twi.h>
     int SLA;
     int count=1;
+
+    enum {
+        TWI_ERR_NONE = 0,
+        TWI_ERR_NACK = 1,
+        TWI_ERR_BUS  = 2,
+        TWI_ERR_ARB  = 3,
+        TWI_ERR_UNK  = 4,
+    };
+
+    enum {
+        TWI_MODE_NONE  = -1,
+        TWI_MODE_WRITE =  0,
+        TWI_MODE_READ  =  1
+    };
+
+    ##define TWI_STOP() TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWSTO);
 end
+
 {pinMode(6,INPUT_PULLUP);}
-var int requestmode=-1;// 0 for Write and 1 for Read
-var u8 errorcode=1;
-/*
-errorcode :
-  No error                 0
-  Interrupt not triggered  1
-  NACK received            2
-  Other Errors             3
-*/
+var int mode = {TWI_MODE_NONE};
 
 var byte twi_transmit_buffer=0;// max buffer length = 1 in this 1 byte example
+
 input  (u8,u8) I2C_REQUEST_DONE;
 
 output (u8 address) I2C_REQUEST_SEND do
-    outer.requestmode=0;// write mode
+    outer.mode = {TWI_MODE_WRITE}; // write mode
     {SLA=@address;}
     {TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE);}// start condition
 end
 
 spawn async/isr [_TWI_vect] do
-  
+  var bool done = true;
+  var int  err  = _;
   {
-    switch(TW_STATUS){      
+    u8 status = TW_STATUS;
+    switch(status) {
         case TW_START:
-            @outer.errorcode = 0;
-            if(@(outer.requestmode)!=-1){
-                TWDR = (SLA << 1) | (@(outer.requestmode)); // SLA + Read/Write
-                @(outer.requestmode)=-1;
-            }
+            ceu_arduino_assert(@(outer.mode) != TWI_MODE_NONE, 9);
+            //ceu_assert(@(outer.mode) != TWI_MODE_NONE, "bug found");
+            TWDR = (SLA << 1) | (@(outer.mode)); // SLA + Read/Write
+            @(outer.mode) = TWI_MODE_NONE;
             TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE); // Continue Transfer
+            @done = 0;
             break;
-      
         case TW_MT_SLA_ACK:
             TWDR = @(outer.twi_transmit_buffer);
             TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE);
+            @done = 0;
             break;
         case TW_MT_DATA_ACK:
-            TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWSTO); // send stop after sending
+            TWI_STOP();
+            @err = TWI_ERR_NONE;
             break;
+
         case TW_MT_SLA_NACK:
-            @(outer.errorcode)=2;// in case of slave not connected or receiving NACK from slave
-            TWCR = (1<<TWINT)|(1<<TWEN)| (1<<TWSTO) | (1<<TWIE);
+        case TW_MT_DATA_NACK:   // occurs disconnecting A4=SDA, A5=SCL
+            TWI_STOP();
+            @err = TWI_ERR_NACK;
             break;
-          
+        case TW_BUS_ERROR:      // occurs disconnecting A4=SDA
+            TWI_STOP();
+            @err = TWI_ERR_BUS;
+            break;
+        case TW_MT_ARB_LOST:    // occurs disconnecting A4=SDA
+            TWI_STOP();
+            @err = TWI_ERR_ARB; // lost bus arbitration
+            break;
+
+        case TW_MR_SLA_NACK:    // address sent, nack received
+        case TW_MR_DATA_NACK:   // data received, nack sent
+        case TW_NO_INFO:        // no state information
+            TWI_STOP();
+            Serial.println(status);
+            ceu_arduino_assert(0, 7); // could never test these cases
+            break;
+
         default:
-            @(outer.errorcode)=3;
-            TWCR = (1<<TWINT)|(1<<TWEN)| (1<<TWSTO) | (1<<TWIE);//default case sends stop condition
+            Serial.println(status);
+            ceu_arduino_assert(0, 9); // must never reach this case
     } 
-  }  
-  emit I2C_REQUEST_DONE(1,outer.errorcode);
+  }
+  if done then
+    emit I2C_REQUEST_DONE(1, err);
+  end
 end
 
 
 {TWBR = ((F_CPU / 100000L) - 16) / 2;}// Bit rate formula
+_Serial.begin(9600);
 
-loop do
-    twi_transmit_buffer = 1-(_digitalRead (6) as byte);
-    emit I2C_REQUEST_SEND(4);
-    await I2C_REQUEST_DONE;
+var int i;
+loop i do
+    twi_transmit_buffer = i;
+    emit I2C_REQUEST_SEND(8);
+    var u8 n;
+    var u8 err;
+    (n, err) = await I2C_REQUEST_DONE;
+    //_ceu_assert(n == 1, "bug found");
+    _ceu_arduino_assert(err == {TWI_ERR_NONE}, err);
 end
