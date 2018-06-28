@@ -1,3 +1,5 @@
+// compile with CEU_DEFS=-DCEU_PM_MIN
+
 /*
  * The following program illustrates the process of master write using TWI via
  * a ceu API.
@@ -27,96 +29,132 @@
  */
 
 #include "wclock.ceu"
+
 native
     _TWI_vect,
 ;
+
 native/pre do
     ##include <compat/twi.h>
-    #include "../print_status.h"
-    int SLA;
-    volatile int TXBuffIndex=0;
-    int TXBuffLen=0;
+
+    enum {
+        TWI_ERR_NONE = 0,
+        TWI_ERR_NACK = 1,
+        TWI_ERR_BUS  = 2,
+        TWI_ERR_ARB  = 3,
+        TWI_ERR_UNK  = 4,
+    };
+
+    enum {
+        TWI_MODE_NONE  = -1,
+        TWI_MODE_WRITE =  0,
+        TWI_MODE_READ  =  1
+    };
+
+    ##define TWI_STOP() TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWSTO);
 end
-var int requestmode=-1;// 0 for Write and 1 for Read
-var u8 errorcode=1;
-/*
-errorcode :
-  No error                 0
-  Interrupt not triggered  1
-  NACK received            2
-  Other Errors             3
-*/
 
-#define TXMAXBUFLEN 32 // Transmit buffer length
-var[TXMAXBUFLEN] byte twi_transmit_buffer;// max buffer length = 32
+var u8   addr = _;
+var int  mode = {TWI_MODE_NONE};
 
-input  (u8,u8) I2C_REQUEST_DONE;
+#define BUF_MAX 32
+var[BUF_MAX] byte buf;
+var int buf_idx = _;
+var int buf_len = _;
+
+input (u8,u8) I2C_REQUEST_DONE;
 
 output (u8 address) I2C_REQUEST_SEND do
-    outer.requestmode=0;// write mode
-    {   
-        SLA=@address;
-        TXBuffIndex = 0;
-        TXBuffLen = @($outer.twi_transmit_buffer);
-    }
+    outer.mode = {TWI_MODE_WRITE}; // write mode
+    outer.addr = address;
+    outer.buf_idx = 0;
+    outer.buf_len = $outer.buf as int;
     {TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE);}// start condition
 end
 
 spawn async/isr [_TWI_vect] do
-  var bool done = false;
-  { 
-      print_stat(TW_STATUS);
-    switch(TW_STATUS){
-    
+  var bool done = true;
+  var int  err  = _;
+  {
+    u8 status = TW_STATUS;
+    switch (status)
+    {
+        // NOT DONE
+
         case TW_START:
         case TW_REP_START:
-            @(outer.errorcode) = 0;
-            if(@(outer.requestmode)!=-1){
-                TWDR = (SLA << 1) | @(outer.requestmode); // SLA + Read/Write (Write in this case)
-                TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWEA); // Continue Transfer
-            }
-            else{
-                TWCR = (1<<TWINT)|(1<<TWEN)| (1<<TWSTO) | (1<<TWIE); // send stop
-                @done=1;
-            }
+            ceu_assert(@(outer.mode) != TWI_MODE_NONE, "bug found");
+            TWDR = (@outer.addr << 1) | (@(outer.mode)); // SLA + Read/Write
+            @(outer.mode) = TWI_MODE_NONE;
+            TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE); // Continue Transfer
+            @done = 0;
             break;
-      
+
+        // MAYBE DONE
+
         case TW_MT_SLA_ACK:
         case TW_MT_DATA_ACK:
-            if(TXBuffIndex<TXBuffLen){
-                TWDR = @(outer.twi_transmit_buffer[{TXBuffIndex++}]);
-                TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWEA);
-            }
-            else{
-                TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWSTO) | (1<<TWEA);
-                @done=1;
+            if (@outer.buf_idx < @outer.buf_len) {
+                TWDR = @(outer.buf[outer.buf_idx]);
+                @outer.buf_idx = @outer.buf_idx + 1;
+                TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE);
+                @done = 0;
+            } else {
+                TWI_STOP();
+                @err = TWI_ERR_NONE;
             }
             break;
+
+        // DONE: with errors
+
         case TW_MT_SLA_NACK:
-        case TW_MT_DATA_NACK:
-            @outer.errorcode=2;// in case of slave not connected or receiving NACK from slave or requesting more data from the slave than the amount sent
-            @done=1;
-            TWCR = (1<<TWINT)|(1<<TWEN)| (1<<TWSTO) | (1<<TWIE) | (1<<TWEA);
+        case TW_MT_DATA_NACK:   // occurs disconnecting A4=SDA, A5=SCL
+            TWI_STOP();
+            @err = TWI_ERR_NACK;
             break;
+        case TW_BUS_ERROR:      // occurs disconnecting A4=SDA
+            TWI_STOP();
+            @err = TWI_ERR_BUS;
+            break;
+        case TW_MT_ARB_LOST:    // occurs disconnecting A4=SDA
+            TWI_STOP();
+            @err = TWI_ERR_ARB; // lost bus arbitration
+            break;
+
+        case TW_MR_SLA_NACK:    // address sent, nack received
+        case TW_MR_DATA_NACK:   // data received, nack sent
+        case TW_NO_INFO:        // no state information
+            TWI_STOP();
+            Serial.println(status);
+            ceu_arduino_assert(0, 7); // could never test these cases
+            break;
+
         default:
-            @outer.errorcode=3;
-            @done=1;
-            TWCR = (1<<TWINT)|(1<<TWEN)| (1<<TWSTO) | (1<<TWIE) | (1<<TWEA);//default case sends stop condition
+            Serial.println(status);
+            ceu_arduino_assert(0, 9); // must never reach this case
     }
   }
   if done then
-    emit I2C_REQUEST_DONE({TXBuffLen},outer.errorcode);
-    outer.twi_transmit_buffer = [];
+    emit I2C_REQUEST_DONE(outer.buf_len, err);
+    outer.buf = [];
   end
 end
 
+{
+    Serial.begin(9600);
+    pinMode(6, INPUT_PULLUP);
+    TWBR = ((F_CPU / 100000L) - 16) / 2;    // bit rate formula
+}
 
-{TWBR = ((F_CPU / 100000L) - 16) / 2;}// Bit rate formula
-{Serial.begin(9600);}
-loop do
-    twi_transmit_buffer = [0,1,2,8,9,9];
-    emit I2C_REQUEST_SEND(4);
-    await I2C_REQUEST_DONE;
+var int i;
+loop i do
+    buf = [0,1,2,8,9,9];
+    emit I2C_REQUEST_SEND(8);
+    var u8 n;
+    var u8 err;
+    (n, err) = await I2C_REQUEST_DONE;
+    _ceu_assert(n == 6, "bug found");
+    _ceu_arduino_assert(err == {TWI_ERR_NONE}, err);
     await 1s;
     {Serial.println("ho");}
 end
