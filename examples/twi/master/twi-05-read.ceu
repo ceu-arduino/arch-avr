@@ -1,3 +1,5 @@
+// compile with CEU_DEFS=-DCEU_PM_MIN
+
 /*
  * The following program illustrates the process of master read using TWI.
  * The program starts by setting the value of the Bit Rate (TWBR).

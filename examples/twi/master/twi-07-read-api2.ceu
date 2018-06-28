@@ -1,22 +1,32 @@
+// compile with CEU_DEFS=-DCEU_PM_MIN
+
 /*
-The following program illustrates the process of master read using TWI via a ceu API.
-This example shows multiple bytes data transfer
-The program starts by setting the value of the Bit Rate (TWBR).
-It triggers the interrupt by sending the start condition continously after the previous request is completed.
-The Start condition further changes the TWDR to SLA+Read and the TWCR is set to resume the transfer.
-Once an ACK is received, The interrupts receives the data one by one until all data is received or a NACK is received.
-This data is received by pushing TWDR in the vector twi_receive_buffer.
-
-
-Testing:
-    - The data is received successfully continously with a proper master slave system connected where the slave sends ACK on data sent/request acknowledged.
-    - Removing the loop and adding await forever at the end receives the data only once as expected.
-    - When a wrong address is mentioned or slave doesn't acknowledge the data a NACK is assumed/received and no data is received.
-
-Circuit :
-    - SDA,SCL lines of both master and slave pulled up by a resistor to 5V.
-    - 5V and GND of both master and slave connected respectively to operate both at same voltage.
-    - A Serial monitor to display the data received in the master.
+ * The following program illustrates the process of master read using TWI via a
+ * ceu API.
+ * This example shows multiple bytes data transfer
+ * The program starts by setting the value of the Bit Rate (TWBR).
+ * It triggers the interrupt by sending the start condition continously after
+ * the previous request is completed.
+ * The Start condition further changes the TWDR to SLA+Read and the TWCR is set
+ * to resume the transfer.
+ * Once an ACK is received, the interrupts receives the data one by one until
+ * all data is received or a NACK is received.
+ * This data is received by pushing TWDR in the vector twi_receive_buffer.
+ *
+ * Testing:
+ *  - The data is received successfully continously with a proper master slave
+ *    system connected where the slave sends ACK on data sent/request
+ *    acknowledged.
+ *  - Removing the loop and adding await forever at the end receives the data
+ *    only once as expected.
+ *  - When a wrong address is mentioned or slave doesn't acknowledge the data a
+ *    NACK is assumed/received and no data is received.
+ *
+ * Circuit :
+ *  - SDA,SCL lines of both master and slave pulled up by a resistor to 5V.
+ *  - 5V and GND of both master and slave connected respectively to operate
+ *    both at same voltage.
+ *  - A Serial monitor to display the data received in the master.
 */
 #include "wclock.ceu"
 native
