@@ -1,13 +1,15 @@
+// compile with CEU_DEFS=-DCEU_PM_MIN
+
 /*
  * The following program illustrates the start condition of the TWI.
  * The program starts by setting the value of the Bit Rate (TWBR).
- * It triggers the interrupt by sending the start condition.
- * The Start condition further changes the TWDR to SLA Read and the TWCR is set
+ * It then sets the start condition which should generate an interrupt.
+ * The start condition further changes the TWDR to SLA Read and the TWCR is set
  * to resume the transfer.
  *
  * Testing:
- *  - The NACK was acheived by just the master connected to the slave without
- *    the SDA and SLA connected with it which makes the slave return a NACK.
+ *  - The NACK was achieved by just the master connected to the slave without
+ *    the SDA and SLA connected which makes the slave not respond (NACK).
  *  - The ACK from the slave was acheived by a fully connected master slave TWI
  *    system.
  *  - The two (NACK/ACK) can be differentiated by the number of fast blinks in
@@ -43,9 +45,11 @@
  */
 
 #include "wclock.ceu"
+
 native
     _TWI_vect,
 ;
+
 native/pre do
     ##include <compat/twi.h>
     int SLA=4;
@@ -53,32 +57,33 @@ end
 
 spawn async/isr [_TWI_vect] do
 {
-  switch(TW_STATUS){
+  switch(TW_STATUS) {
     case TW_START:
-        // change TW_STATUS to SLA + Read and the interrupt is triggered
-        TWDR = (SLA << 1) | TW_READ;// read from slave
-        TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE);// continue transfer by enabling interrupt
+        // change TW_STATUS to SLA+R
+        TWDR = (SLA << 1) | TW_READ;                // read from slave
+        TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE);  // continue transfer by enabling interrupt
         break;
     
     case TW_MR_SLA_ACK:
-        // Data Received with an ACK
+        // data received with an ACK
         ceu_arduino_assert(0,7);
         break;    
 
     case TW_MR_SLA_NACK:
-        // Data Received with a NACK
+        // data received with a NACK
         ceu_arduino_assert(0,5);
         break;    
         
     default:
-        // a default stop condition in case of an error
-        TWCR = (1<<TWINT)|(1<<TWEN)| (1<<TWSTO) | (1<<TWIE);//Stop Condition
+        // should never occur
+        ceu_arduino_assert(0,3);
   }
 }
 end
 
 {
-    TWBR = ((F_CPU / 100000L) - 16) / 2;//set bit rate
-    TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE);// start condition
+    TWBR = ((F_CPU / 100000L) - 16) / 2;                // set bit rate
+    TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE);   // set start condition
 }
-await 300ms;
+
+await FOREVER;
