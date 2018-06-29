@@ -38,16 +38,22 @@ native/pre do
     int SLA;
     int RXBuffIndex=0;
     int RXBuffLen=0;
+
+    enum {
+        TWI_ERR_NONE = 0,
+        TWI_ERR_NACK = 1,
+        TWI_ERR_ARB  = 2,
+        TWI_ERR_BUS  = 3,
+    };
+
+    enum {
+        TWI_MODE_NONE  = -1,
+        TWI_MODE_WRITE =  0,
+        TWI_MODE_READ  =  1
+    };
 end
-var int requestmode=-1;// 0 for Write and 1 for Read
-var u8 errorcode=1;
-/*
-errorcode :
-  No error                 0
-  Interrupt not triggered  1
-  NACK received            2
-  Other Errors             3
-*/
+
+var int mode = {TWI_MODE_NONE};
 
 #define BUF_MAX 32
 var[BUF_MAX] byte buf;
@@ -55,7 +61,7 @@ var[BUF_MAX] byte buf;
 input  (u8,u8) I2C_REQUEST_DONE;
 
 output (u8 address,u8 n_bytes) I2C_REQUEST_RECEIVE do
-    outer.requestmode=1;// read mode
+    outer.mode = {TWI_MODE_READ};
     outer.buf = [];
     {
         SLA=@address;
@@ -69,45 +75,46 @@ spawn async/isr [_TWI_vect] do
   var bool done  = false;
   var bool rxed  = false;
   var byte value = _;
+
+  var u8 err = {TWI_ERR_NONE};
+
   { 
-      print_stat(TW_STATUS);
-    switch(TW_STATUS){
-    
+    u8 status = TW_STATUS;
+    switch(status)
+    {
+        // NOT DONE
+
         case TW_START:
         case TW_REP_START:
-            @(outer.errorcode) = 0;
-            if(@(outer.requestmode)!=-1){
-                TWDR = (SLA << 1) | @(outer.requestmode); // SLA + Read/Write (Write in this case)
-                TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWEA); // Continue Transfer
-            }
-            else{
-                @done=1;
-                TWCR = (1<<TWINT)|(1<<TWEN)| (1<<TWSTO) | (1<<TWIE); // send stop
-            }
+            ceu_assert(@outer.mode != TWI_MODE_NONE, "bug found");
+            TWDR = (SLA << 1) | @(outer.mode); // SLA + Read/Write (Write in this case)
+            TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWEA); // Continue Transfer
+            @outer.mode = TWI_MODE_NONE;
             break;
+
+        // MAYBE DONE
       
         case TW_MR_SLA_ACK:
             if(RXBuffIndex<RXBuffLen){
                 TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE)|(1<<TWEA);
-            }
-            else{
+            } else {
                 @done=1;
                 TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE);// send NACK
             }
             break;
+
         case TW_MR_DATA_ACK:
             if(RXBuffIndex<RXBuffLen){
                 if(TWDR==255){
                     @done=1;
                     TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO) | (1<<TWIE);
-                }
-                else{
+                } else {
                     @rxed  = true;
                     @value = TWDR;
                     RXBuffIndex++;
-                    if(RXBuffIndex!=RXBuffLen)
+                    if(RXBuffIndex!=RXBuffLen) {
                         TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE)|(1<<TWEA);
-                    else{
+                    } else {
                         @done=1;
                         TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO) | (1<<TWIE);
                     }
@@ -118,17 +125,27 @@ spawn async/isr [_TWI_vect] do
                 TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO) | (1<<TWIE);
             }
             break;
-        case TW_MR_DATA_NACK:
-        case TW_MR_SLA_NACK:
 
-            @outer.errorcode=2;// in case of slave not connected or receiving NACK from slave or requesting more data from the slave than the amount sent
+        // DONE: with errors
+
+        case TW_MR_SLA_NACK:
+        case TW_MR_DATA_NACK:   // occurs disconnecting A4=SDA, A5=SCL
+            @err = TWI_ERR_NACK; // in case of slave not connected or receiving NACK from slave or requesting more data from the slave than the amount sent
             @done=1;
             TWCR = (1<<TWINT)|(1<<TWEN)| (1<<TWSTO) | (1<<TWIE);
             break;
-        default:
-            @outer.errorcode=3;
+        case TW_MR_ARB_LOST:    // occurs disconnecting A4=SDA
+            @err = TWI_ERR_ARB; // lost bus arbitration
             @done=1;
-            TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO) | (1<<TWIE);//default case sends stop condition
+            break;
+        case TW_BUS_ERROR:      // occurs disconnecting A4=SDA
+            @err = TWI_ERR_BUS;
+            @done=1;
+            break;
+
+        default:
+            Serial.println(status);
+            ceu_arduino_assert(0, 9); // must never reach this case
     }
   }
 
@@ -137,7 +154,7 @@ spawn async/isr [_TWI_vect] do
     outer.buf = outer.buf .. [value];
   end
   if done then
-    emit I2C_REQUEST_DONE(($outer.buf) as u8, outer.errorcode);
+    emit I2C_REQUEST_DONE(($outer.buf) as u8, err);
     {
         RXBuffIndex=0;
         RXBuffLen=0;
@@ -151,10 +168,16 @@ end
 loop do
     _Serial.println(">>>");
     emit I2C_REQUEST_RECEIVE(8,4);
-    await I2C_REQUEST_DONE;
-    var u8 i;
-    loop i in [1->($buf) as u8] do
-        _Serial.println(buf[i-1]);
+
+    var u8 n;
+    var u8 err;
+    (n, err) = await I2C_REQUEST_DONE;
+    _ceu_arduino_assert(err == {TWI_ERR_NONE}, err);
+    _ceu_assert(n == 4, "bug found");
+
+    var usize i;
+    loop i in [0-> $buf[ do
+        _Serial.println(buf[i]);
     end
     _Serial.println("<<<");
     await 1s;
