@@ -49,8 +49,6 @@ native/pre do
         TWI_MODE_WRITE =  0,
         TWI_MODE_READ  =  1
     };
-
-    ##define TWI_STOP() TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWSTO);
 end
 
 var u8  addr = _;
@@ -122,7 +120,7 @@ spawn async/isr [_TWI_vect] do
     $outer.buf = $outer.buf - 1;
   end
   if done then
-    {TWI_STOP();}
+    { TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWSTO); } // stop
     emit I2C_REQUEST_DONE((outer.buf_togo - $outer.buf) as u8, err);
   end
 end

@@ -51,8 +51,6 @@ native/pre do
         TWI_MODE_WRITE =  0,
         TWI_MODE_READ  =  1
     };
-
-    ##define TWI_STOP() TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWSTO);
 end
 
 var int mode = {TWI_MODE_NONE};
@@ -144,7 +142,7 @@ spawn async/isr [_TWI_vect] do
   end
   if done > 0 then
     if done == 1 then
-        {TWI_STOP()};
+        { TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWSTO); } // stop
     end
     emit I2C_REQUEST_DONE(($outer.buf) as u8, err);
     {
