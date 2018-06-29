@@ -11,7 +11,7 @@
  * to resume the transfer.
  * Once an ACK is received, the interrupts receives the data one by one until
  * all data is received or a NACK is received.
- * This data is received by pushing TWDR in the vector twi_receive_buffer.
+ * This data is received by pushing TWDR in the vector buf.
  *
  * Testing:
  *  - The data is received successfully continously with a proper master slave
@@ -49,14 +49,14 @@ errorcode :
   Other Errors             3
 */
 
-#define RXMAXBUFLEN 32 // Receive buffer length
-var[RXMAXBUFLEN] byte twi_receive_buffer;// max buffer length = 32
+#define BUF_MAX 32
+var[BUF_MAX] byte buf;
 
 input  (u8,u8) I2C_REQUEST_DONE;
 
 output (u8 address,u8 n_bytes) I2C_REQUEST_RECEIVE do
     outer.requestmode=1;// read mode
-    outer.twi_receive_buffer = [];
+    outer.buf = [];
     {
         SLA=@address;
         RXBuffIndex = 0;
@@ -66,8 +66,9 @@ output (u8 address,u8 n_bytes) I2C_REQUEST_RECEIVE do
 end
 
 spawn async/isr [_TWI_vect] do
-  var bool done = false;
-  var int value = -1;
+  var bool done  = false;
+  var bool rxed  = false;
+  var byte value = _;
   { 
       print_stat(TW_STATUS);
     switch(TW_STATUS){
@@ -101,7 +102,8 @@ spawn async/isr [_TWI_vect] do
                     TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO) | (1<<TWIE);
                 }
                 else{
-                    @(value) = TWDR;
+                    @rxed  = true;
+                    @value = TWDR;
                     RXBuffIndex++;
                     if(RXBuffIndex!=RXBuffLen)
                         TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE)|(1<<TWEA);
@@ -130,12 +132,12 @@ spawn async/isr [_TWI_vect] do
     }
   }
 
-  if value!=-1 then
-    {s(@value);}
-    outer.twi_receive_buffer = outer.twi_receive_buffer .. [value as byte];
+  if rxed then
+    //{s(@value);}
+    outer.buf = outer.buf .. [value];
   end
   if done then
-    emit I2C_REQUEST_DONE(($outer.twi_receive_buffer) as u8,outer.errorcode);
+    emit I2C_REQUEST_DONE(($outer.buf) as u8, outer.errorcode);
     {
         RXBuffIndex=0;
         RXBuffLen=0;
@@ -147,12 +149,13 @@ end
 {TWBR = ((F_CPU / 100000L) - 16) / 2;}// Bit rate formula
 {Serial.begin(9600);}
 loop do
-    emit I2C_REQUEST_RECEIVE(4,4);
+    _Serial.println(">>>");
+    emit I2C_REQUEST_RECEIVE(8,4);
     await I2C_REQUEST_DONE;
-    await 5s;
     var u8 i;
-    loop i in [1->($twi_receive_buffer) as u8] do
-        _Serial.println(twi_receive_buffer[i-1]);
+    loop i in [1->($buf) as u8] do
+        _Serial.println(buf[i-1]);
     end
-    _Serial.println("bye");
+    _Serial.println("<<<");
+    await 1s;
 end
