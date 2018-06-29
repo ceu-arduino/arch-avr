@@ -94,18 +94,24 @@ spawn async/isr [_TWI_vect] do
             break;
 
         // MAYBE DONE
-      
+
+// TODO: verify this part (1,2,3)
+// >>>>>>>>>>
         case TW_MR_SLA_ACK:
+// 1. why not?
+//ceu_assert(@outer.buf_rxed < @outer.buf_torx);
             if (@outer.buf_rxed < @outer.buf_torx) {
                 @done = 0;
                 TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWEA);
             } else {
+// is this else reachable?
                 TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE);  // send NACK
                 @done = 2;                                  // don't send STOP
             }
             break;
-
         case TW_MR_DATA_ACK:
+// 2. why not?
+//ceu_assert(@outer.buf_rxed < @outer.buf_torx);
             if (@outer.buf_rxed < @outer.buf_torx) {
                 @rxed  = true;
                 @value = TWDR;
@@ -116,6 +122,8 @@ spawn async/isr [_TWI_vect] do
                 }
             }
             break;
+// 3. This code is sligtly different from utility/twi.c in Arduino
+// <<<<<<<<<<
 
         // DONE: with errors
 
@@ -165,6 +173,7 @@ loop do
     loop i in [0-> $buf[ do
         _Serial.println(buf[i]);
     end
+
     _Serial.println("<<<");
     await 1s;
 end
