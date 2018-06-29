@@ -53,8 +53,8 @@ native/pre do
     ##define TWI_STOP() TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWSTO);
 end
 
-var u8   addr = _;
-var int  mode = {TWI_MODE_NONE};
+var u8  addr = _;
+var int mode = {TWI_MODE_NONE};
 
 #define BUF_MAX 32
 var[BUF_MAX*] byte buf;
@@ -63,7 +63,7 @@ var int buf_togo = _;
 input (u8,u8) I2C_REQUEST_DONE;
 
 output (u8 address) I2C_REQUEST_SEND do
-    outer.mode = {TWI_MODE_WRITE}; // write mode
+    outer.mode = {TWI_MODE_WRITE};
     outer.addr = address;
     outer.buf_togo = $outer.buf as int;
     {TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)|(1<<TWIE);}// start condition
@@ -81,10 +81,10 @@ spawn async/isr [_TWI_vect] do
 
         case TW_START:
         case TW_REP_START:
-            ceu_assert(@(outer.mode) != TWI_MODE_NONE, "bug found");
-            TWDR = (@outer.addr << 1) | (@(outer.mode)); // SLA + Read/Write
+            ceu_assert(@outer.mode != TWI_MODE_NONE, "bug found");
+            TWDR = (@outer.addr << 1) | @outer.mode; // SLA + Read/Write
             TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE); // Continue Transfer
-            @(outer.mode) = TWI_MODE_NONE;
+            @outer.mode = TWI_MODE_NONE;
             @done = 0;
             break;
 
