@@ -45,9 +45,8 @@ native/pre do
     enum {
         TWI_ERR_NONE = 0,
         TWI_ERR_NACK = 1,
-        TWI_ERR_BUS  = 2,
-        TWI_ERR_ARB  = 3,
-        TWI_ERR_UNK  = 4,
+        TWI_ERR_ARB  = 2,
+        TWI_ERR_BUS  = 3,
     };
 
     enum {
@@ -96,7 +95,6 @@ spawn async/isr [_TWI_vect] do
         // DONE: no errors
 
         case TW_MT_DATA_ACK:
-            TWI_STOP();
             @err = TWI_ERR_NONE;
             break;
 
@@ -104,32 +102,22 @@ spawn async/isr [_TWI_vect] do
 
         case TW_MT_SLA_NACK:
         case TW_MT_DATA_NACK:   // occurs disconnecting A4=SDA, A5=SCL
-            TWI_STOP();
             @err = TWI_ERR_NACK;
             break;
-        case TW_BUS_ERROR:      // occurs disconnecting A4=SDA
-            TWI_STOP();
-            @err = TWI_ERR_BUS;
-            break;
         case TW_MT_ARB_LOST:    // occurs disconnecting A4=SDA
-            TWI_STOP();
             @err = TWI_ERR_ARB; // lost bus arbitration
             break;
-
-        case TW_MR_SLA_NACK:    // address sent, nack received
-        case TW_MR_DATA_NACK:   // data received, nack sent
-        case TW_NO_INFO:        // no state information
-            TWI_STOP();
-            Serial.println(status);
-            ceu_arduino_assert(0, 7); // could never test these cases
+        case TW_BUS_ERROR:      // occurs disconnecting A4=SDA
+            @err = TWI_ERR_BUS;
             break;
 
         default:
             Serial.println(status);
             ceu_arduino_assert(0, 9); // must never reach this case
-    } 
+    }
   }
   if done then
+    {TWI_STOP();}
     emit I2C_REQUEST_DONE(1, err);
   end
 end

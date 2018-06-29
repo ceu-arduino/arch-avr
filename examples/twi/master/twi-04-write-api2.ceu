@@ -40,9 +40,8 @@ native/pre do
     enum {
         TWI_ERR_NONE = 0,
         TWI_ERR_NACK = 1,
-        TWI_ERR_BUS  = 2,
-        TWI_ERR_ARB  = 3,
-        TWI_ERR_UNK  = 4,
+        TWI_ERR_ARB  = 2,
+        TWI_ERR_BUS  = 3,
     };
 
     enum {
@@ -72,7 +71,7 @@ end
 
 spawn async/isr [_TWI_vect] do
   var bool done = true;
-  var int  err  = _;
+  var int  err  = {TWI_ERR_NONE};
   var bool txed = false;
   {
     u8 status = TW_STATUS;
@@ -84,8 +83,8 @@ spawn async/isr [_TWI_vect] do
         case TW_REP_START:
             ceu_assert(@(outer.mode) != TWI_MODE_NONE, "bug found");
             TWDR = (@outer.addr << 1) | (@(outer.mode)); // SLA + Read/Write
-            @(outer.mode) = TWI_MODE_NONE;
             TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE); // Continue Transfer
+            @(outer.mode) = TWI_MODE_NONE;
             @done = 0;
             break;
 
@@ -98,9 +97,6 @@ spawn async/isr [_TWI_vect] do
                 TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE);
                 @txed = 1;
                 @done = 0;
-            } else {
-                TWI_STOP();
-                @err = TWI_ERR_NONE;
             }
             break;
 
@@ -108,24 +104,13 @@ spawn async/isr [_TWI_vect] do
 
         case TW_MT_SLA_NACK:
         case TW_MT_DATA_NACK:   // occurs disconnecting A4=SDA, A5=SCL
-            TWI_STOP();
             @err = TWI_ERR_NACK;
             break;
-        case TW_BUS_ERROR:      // occurs disconnecting A4=SDA
-            TWI_STOP();
-            @err = TWI_ERR_BUS;
-            break;
         case TW_MT_ARB_LOST:    // occurs disconnecting A4=SDA
-            TWI_STOP();
             @err = TWI_ERR_ARB; // lost bus arbitration
             break;
-
-        case TW_MR_SLA_NACK:    // address sent, nack received
-        case TW_MR_DATA_NACK:   // data received, nack sent
-        case TW_NO_INFO:        // no state information
-            TWI_STOP();
-            Serial.println(status);
-            ceu_arduino_assert(0, 7); // could never test these cases
+        case TW_BUS_ERROR:      // occurs disconnecting A4=SDA
+            @err = TWI_ERR_BUS;
             break;
 
         default:
@@ -137,6 +122,7 @@ spawn async/isr [_TWI_vect] do
     $outer.buf = $outer.buf - 1;
   end
   if done then
+    {TWI_STOP();}
     emit I2C_REQUEST_DONE((outer.buf_togo - $outer.buf) as u8, err);
   end
 end
@@ -154,8 +140,8 @@ loop i do
     var u8 n;
     var u8 err;
     (n, err) = await I2C_REQUEST_DONE;
-    _ceu_assert(n == 6, "bug found");
     _ceu_arduino_assert(err == {TWI_ERR_NONE}, err);
+    _ceu_assert(n == 6, "bug found");
     await 1s;
     {Serial.println("ho");}
 end
