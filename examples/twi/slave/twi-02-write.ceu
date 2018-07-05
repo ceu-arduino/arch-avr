@@ -107,7 +107,7 @@ end
 
 {
     TWBR = ((F_CPU / 100000L) - 16) / 2;// Bit rate formula
-    TWAR = 4 << 1;
+    TWAR = 8 << 1;
   	Serial.begin(9600);
     digitalWrite(SDA,1);
     digitalWrite(SCL,1);
