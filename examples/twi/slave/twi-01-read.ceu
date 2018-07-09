@@ -109,7 +109,7 @@ end
 
 {
     TWBR = ((F_CPU / 100000L) - 16) / 2;// Bit rate formula
-    TWAR = 4 << 1;
+    TWAR = 8 << 1;
   	Serial.begin(9600);
     digitalWrite(SDA,1);
     digitalWrite(SCL,1);
@@ -118,7 +118,7 @@ end
 
 loop do
     await I2C_REQUEST_ADDRESSED;
-    emit I2C_REQUEST_RECEIVE(4);
+    emit I2C_REQUEST_RECEIVE(5);
     await I2C_REQUEST_DONE;
     var u8 i;
     loop i in [1-> $twi_receive_buffer as u8] do

@@ -95,8 +95,6 @@ spawn async/isr [_TWI_vect] do
 
         // MAYBE DONE
 
-// TODO: verify this part (1,2,3)
-// >>>>>>>>>>
         case TW_MR_SLA_ACK:            
             @done = 0;
             TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWIE) | (1<<TWEA);
@@ -149,13 +147,13 @@ end
 {Serial.begin(9600);}
 loop do
     _Serial.println(">>>");
-    emit I2C_REQUEST_RECEIVE(8,4);
+    emit I2C_REQUEST_RECEIVE(8,5);
 
     var u8 n;
     var u8 err;
     (n, err) = await I2C_REQUEST_DONE;
     _ceu_arduino_assert(err == {TWI_ERR_NONE}, err);
-    _ceu_assert(n == 4, "bug found");
+    _ceu_assert(n == 5, "bug found");
 
     var usize i;
     loop i in [0-> $buf[ do

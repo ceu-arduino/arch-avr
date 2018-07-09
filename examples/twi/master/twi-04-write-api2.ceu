@@ -133,13 +133,13 @@ end
 
 var int i;
 loop i do
-    buf = [0,1,2,3,4,i];
+    buf = [0,1,2,i];
     emit I2C_REQUEST_SEND(8);
     var u8 n;
     var u8 err;
     (n, err) = await I2C_REQUEST_DONE;
     _ceu_arduino_assert(err == {TWI_ERR_NONE}, err);
-    _ceu_assert(n == 6, "bug found");
+    _ceu_assert(n == 4, "bug found");
     await 1s;
     {Serial.println("ho");}
 end
