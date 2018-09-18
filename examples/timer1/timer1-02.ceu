@@ -20,13 +20,15 @@ _pinMode(13, _OUTPUT);
     TIMSK1 = TIMSK1 | (1 << TOIE1);  // enable timer overflow interrupt
 }
 
+input none DT;
+
 spawn async/isr [_TIMER1_OVF_vect, 0] do
     {TCNT1 = 34286;}                 // preload timer 65536-16MHz/256/2Hz
-    emit 500ms;
+    emit DT;    // 500ms
 end
 
 var high/low x = low;
-every 500ms do
+every DT do
     x = not x;
     _digitalWrite(13, x);
 end

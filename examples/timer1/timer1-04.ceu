@@ -7,41 +7,44 @@
 #define CPU_FREQ        16000000                          // 16Mhz
 #define INCS_PER_SECOND (CPU_FREQ/1024)                   // 15625
 #define US_PER_CYCLE    (65536*1000000 / INCS_PER_SECOND) // 4194304
-#define US_TO_INCS(us)  ((us)*65536/US_PER_CYCLE)
+//#define US_TO_INCS(us)  ((us)*65536/US_PER_CYCLE)         // 65536/4194304 = 1/64
 //#define US_TO_OVERFLOW(us) (65536 - US_TO_INCS(us))
 // all simplified goes to this:
-#define US_TO_OVERFLOW(us) (65536 - (us/64) - 64)
+#define US_TO_INCS(us)  ((us)/64)
+#define US_TO_OVERFLOW(us) (65536 - ((us)/64) - 64)
 #define INCS_TO_US(incs) (((s32)(incs))*64)
 
-native/const _TIMER1_OVF_vect;
+native/const _TIMER1_COMPA_vect;
 native _ceu_arduino_dt;
 
 native/pos do
     ##define __WCLOCK_CEU__
-    static u16 CEU_ARDUINO_old;
+
+    static u16 TIMER1_old;
+
     static void ceu_arduino_callback_wclock_min (s32 dt) {
         if (dt == CEU_WCLOCK_INACTIVE) {
-            TIMSK1 = TIMSK1 & ~(1 << TOIE1);
+            TIMSK1 = TIMSK1 & ~(1 << OCIE1A);
         } else {
-            s32 v = US_TO_OVERFLOW(dt);
-            ceu_assert(v > 0, "bug found");
-            TCNT1 = v;
-            CEU_ARDUINO_old = v;
-            TIMSK1 = TIMSK1 | (1 << TOIE1);
+            s32 v = US_TO_INCS(dt);
+            ceu_assert(v < U16_MAX, "bug found");
+            OCR1A = (TIMER1_old + v);
+            TIMSK1 = TIMSK1 | (1 << OCIE1A);
         }
     }
+
     s32 ceu_arduino_callback_wclock_dt (void) { return 0; }
 
     s32 ceu_arduino_dt (void) {
         u16 now = TCNT1;
-        s32 dt  = (now - CEU_ARDUINO_old);
-        CEU_ARDUINO_old = now;
+        s32 dt  = (now - TIMER1_old);
+        TIMER1_old = now;
         return INCS_TO_US(dt);
     }
 end
 
 {
-    CEU_ARDUINO_old = TCNT1;
+    TIMER1_old = TCNT1;
     TCCR1A = 0;
     TCCR1B = (1 << CS12) | (1 << CS10); // 1024 prescaler
 }
@@ -50,7 +53,7 @@ input none DT;
 
 var u32 dt = _;
 
-spawn async/isr [_TIMER1_OVF_vect, 0] do
+spawn async/isr [_TIMER1_COMPA_vect, 0] do
     outer.dt = _ceu_arduino_dt();
     emit DT;
 end

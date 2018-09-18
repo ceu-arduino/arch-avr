@@ -19,13 +19,15 @@ native/const _TIMER1_COMPA_vect;
     TIMSK1 = TIMSK1 | (1 << OCIE1A); // enable timer compare interrupt
 }
 
+input none DT;
+
 spawn async/isr [_TIMER1_COMPA_vect, 0] do
-    emit 500ms;
+    emit DT;    // 500ms
 end
 
 _pinMode(13, _OUTPUT);
 var high/low x = low;
-every 500ms do
+every DT do
     x = not x;
     _digitalWrite(13, x);
 end
