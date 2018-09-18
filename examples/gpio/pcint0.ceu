@@ -9,7 +9,7 @@ input none PCINT0;
 // Uno:  D8-D13
 // Mega: D53-D50, D10-D13
 
-#define BIT PCINT4 // NOTE: PCINT4=4bit in the port (unrelated to the ISR vect!)
+#define BIT PCINT4 // UNO=D12, MEGA=D10
 
 native/const _PCINT0_vect;
 
