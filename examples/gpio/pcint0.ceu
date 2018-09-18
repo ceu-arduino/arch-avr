@@ -5,26 +5,19 @@
 
 input none PCINT0;
 
-// PORT 0
+// PORT 0/B
 // Uno:  D8-D13
 // Mega: D53-D50, D10-D13
 
 #define BIT PCINT4 // NOTE: PCINT4=4bit in the port (unrelated to the ISR vect!)
-
-#if   defined(ARDUINO_BOARD_UNO)
-#define PIN 12
-#elif defined(ARDUINO_BOARD_MEGA)
-#define PIN 10
-#else
-#error Board not supported.
-#endif
 
 native/const _PCINT0_vect;
 
 {
     pinMode(13, OUTPUT);
 
-    pinMode(PIN, INPUT_PULLUP);
+    bitClear(DDRB, BIT);  // input
+    bitSet(PORTB, BIT);   // pullup
 
     bitSet(PCMSK0, BIT);
     bitSet(PCIFR,  PCIF0);  // clears pending interrupts in port 0
